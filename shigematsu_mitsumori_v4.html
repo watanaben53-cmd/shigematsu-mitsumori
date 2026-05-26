@@ -636,9 +636,21 @@ tbody tr:last-child td{border-bottom:none;}
             <div class="fr"><div class="fg"><label>件名</label>
               <input id="fax-subject" placeholder="農業機械 御見積のご案内" oninput="renderFaxPreview()"></div></div>
             <div class="fr"><div class="fg"><label>本文</label>
+              <div style="display:flex;gap:6px;margin-bottom:5px;align-items:center">
+                <span style="font-size:10px;color:var(--text3);white-space:nowrap">定型文：</span>
+                <select id="fax-template" onchange="applyFaxTemplate()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:var(--mf);flex:1">
+                  <option value="">── 定型文を選択 ──</option>
+                  <option value="0">御見積送付（標準）</option>
+                  <option value="1">ご照会への回答</option>
+                  <option value="2">更新見積送付</option>
+                  <option value="3">シーズン案内</option>
+                </select>
+                <button class="btn btn-sm btn-secondary" onclick="clearFaxBody()" style="font-size:10px;padding:3px 7px;white-space:nowrap">クリア</button>
+              </div>
               <textarea id="fax-body" rows="5" oninput="renderFaxPreview()"
-                placeholder="平素は格別のご愛顧を賜り、誠にありがとうございます。&#10;この度は下記の通り御見積書を送付申し上げます。&#10;ご査収のほど宜しくお願い申し上げます。"
-                style="resize:vertical;font-family:var(--mf);font-size:11.5px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;width:100%"></textarea></div></div>
+                placeholder="本文を入力、または上の定型文を選択してください"
+                style="resize:vertical;font-family:var(--mf);font-size:11.5px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;width:100%"></textarea>
+            </div></div>
             <div class="fr"><div class="fg"><label>送付枚数（本書含む）</label>
               <input type="number" id="fax-pages" value="2" min="1" max="99" oninput="renderFaxPreview()" style="max-width:80px"></div></div>
             <div style="margin-top:12px;display:flex;gap:8px">
@@ -1917,9 +1929,9 @@ function renderApprovePage(){
     '<button class="btn btn-sm btn-secondary wf-btn" data-action="open" data-id="'+e.id+'" title="内容確認">📄確認</button>',
     '<button class="btn btn-sm btn-primary wf-btn" data-action="approve" data-id="'+e.id+'" title="承認して印刷待ちへ">✓ 承認</button>',
     '<button class="btn btn-sm btn-danger wf-btn" data-action="reject" data-id="'+e.id+'" title="差戻し">↩ 差戻し</button>',
+    '<button class="btn btn-sm btn-danger wf-btn" data-action="delete" data-id="'+e.id+'" data-no="'+(e.no||'')+'" title="削除">🗑</button>',
     '</td></tr>'
   ].join('')).join('')||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">承認待ちの見積はありません</td></tr>';
-  // イベント委譲
   requestAnimationFrame(()=>{
     document.querySelectorAll('#approve-tbody .wf-btn').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -1927,6 +1939,7 @@ function renderApprovePage(){
         if(act==='open') openEstById(id);
         else if(act==='approve') approveWorkflow(id);
         else if(act==='reject') rejectWorkflow(id);
+        else if(act==='delete') deleteEst(id,btn.dataset.no);
       });
     });
   });
@@ -2325,6 +2338,29 @@ window.disconnectSync=disconnectSync;
 // 担当者ごとのFAX担当欄（発注管理アプリと同じ担当者リスト）
 const FAX_TANTO_LIST = ['渡部','重松','中川','藤井','佐藤','福田','井本'];
 
+// FAX定型文
+const FAX_TEMPLATES=[
+  {label:'御見積送付（標準）',text:'平素は格別のご愛顧を賜り、誠にありがとうございます。\nこの度は下記の通り御見積書を送付申し上げます。\nご査収のほど宜しくお願い申し上げます。'},
+  {label:'ご照会への回答',text:'平素は格別のご高配を賜り、厚く御礼申し上げます。\nご照会いただきました件につきまして、下記の通り御見積書を送付申し上げます。\nご不明な点がございましたら、お気軽にお問い合わせください。'},
+  {label:'更新見積送付',text:'平素は大変お世話になっております。\n先日ご送付しました御見積書の内容を更新いたしましたので、改めてご送付申し上げます。\nご確認のほど宜しくお願い申し上げます。'},
+  {label:'シーズン案内',text:'平素は格別のご愛顧を賜り、誠にありがとうございます。\n来シーズンに向けた農業機械の御見積書をご送付申し上げます。\nご検討のほど、何卒宜しくお願い申し上げます。'},
+];
+function applyFaxTemplate(){
+  const sel=document.getElementById('fax-template');
+  const idx=sel?.value;
+  if(idx===''||idx===undefined) return;
+  const tmpl=FAX_TEMPLATES[parseInt(idx)];
+  if(!tmpl) return;
+  document.getElementById('fax-body').value=tmpl.text;
+  // 選択をリセット
+  sel.value='';
+  renderFaxPreview();
+}
+function clearFaxBody(){
+  document.getElementById('fax-body').value='';
+  renderFaxPreview();
+}
+
 function renderFaxPage(){
   // 初期日付セット
   const today=new Date().toISOString().split('T')[0];
@@ -2525,9 +2561,27 @@ function loadFaxFromEst(){
   showToast('見積から送信先を読み込みました','success');
 }
 
+// ━━━ 見積削除 ━━━
+async function deleteEst(id, estNo){
+  const label = estNo ? '見積No.'+estNo : 'この見積';
+  if(!confirm(label+'を削除しますか？\nこの操作は取り消せません。')) return;
+  try{
+    if(window._dbReady){
+      const {ref, remove} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+      await remove(window._ref(window._db,'estimates/'+id));
+    } else {
+      window._ests = window._ests.filter(e=>e.id!==id);
+    }
+    showToast('削除しました','success');
+    renderDash(); renderList(); renderAppr(); updateBadge();
+    if(document.getElementById('pg-approve')?.classList.contains('active')) renderApprovePage();
+    if(document.getElementById('pg-print')?.classList.contains('active')) renderPrintPage();
+  } catch(e){ showToast('削除エラー:'+e.message,'error'); }
+}
+
 // グローバル公開
 ['navigate','rp','addItem','removeItem','updateQty','updateFreight','saveEst','newEst',
- 'renderApprovePage','renderPrintPage','approveWorkflow','rejectWorkflow','sentWorkflow','printEst','renderCustomersPage','updatePrintBtn','loadCustomerToEst',
+ 'renderApprovePage','renderPrintPage','deleteEst','approveWorkflow','rejectWorkflow','sentWorkflow','printEst','renderCustomersPage','updatePrintBtn','loadCustomerToEst',
  'filterProds','refreshProdPrices','refreshFreight','setCat','renderList','openEstById',
  'applyRate','resetRate','saveRateToFb','renderPriceTable','approveEst','rejectEst',
  'addCalcRow','clearCalc','updCalc','removeCalcRow','saveCalcToProducts',
