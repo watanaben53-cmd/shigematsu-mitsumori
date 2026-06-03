@@ -371,7 +371,7 @@ tbody tr:last-child td{border-bottom:none;}
 }
 
 /* 印刷 A4横・余白なし */
-@page{size:A4 landscape;margin:0;}
+@page{size:A4 landscape;margin:6mm 8mm;}
 @media print{
   html,body{margin:0;padding:0;}
   #sidebar,#topbar,.prev-tb,.tb-actions,.est-layout>:first-child{display:none!important;}
@@ -382,7 +382,7 @@ tbody tr:last-child td{border-bottom:none;}
   .est-layout{display:block!important;}
   #est-preview{display:block!important;border:none!important;box-shadow:none!important;border-radius:0!important;}
   .prev-inner{overflow:visible!important;}
-  .mitsumori{width:100%!important;min-width:unset!important;padding:4mm 5mm!important;font-size:8pt!important;}
+  .mitsumori{width:100%!important;min-width:unset!important;padding:0!important;font-size:8pt!important;}
   .m-tbl{font-size:7.5pt!important;}
   .m-tbl th,.m-tbl td{padding:2px 3px!important;}
   .m-tbl input[type=number]{border:none!important;background:transparent!important;width:auto!important;}
@@ -478,8 +478,21 @@ tbody tr:last-child td{border-bottom:none;}
             <div class="fr"><div class="fg"><label>TEL</label><input id="f-tel" placeholder="0000-00-0000" oninput="rp()"></div><div class="fg"><label>FAX</label><input id="f-fax" placeholder="0000-00-0000" oninput="rp()"></div></div>
             <div class="fst">見積条件</div>
             <div class="fr"><div class="fg"><label>発行日</label><input type="date" id="f-date" oninput="rp()"></div><div class="fg"><label>見積番号</label><input id="f-no" oninput="rp()"></div></div>
-            <div class="fr"><div class="fg"><label>受渡し場所</label><input id="f-deliv" value="御社店頭渡し" oninput="rp()"></div><div class="fg"><label>取引条件</label><input id="f-terms" value="従来どおり" oninput="rp()"></div></div>
-            <div class="fr"><div class="fg"><label>見積有効期限</label><input id="f-valid" oninput="rp()"></div><div class="fg"><label>納期</label><input id="f-noki" value="ー" oninput="rp()"></div></div>
+            <div class="fr"><div class="fg"><label>受渡し場所</label><input id="f-deliv" value="御社店頭渡し" oninput="rp()"></div><div class="fg"><label>取引条件</label>
+              <select id="f-terms-sel" onchange="onTermsSel()" style="font-size:11px;width:100%"><option value="従来どおり">従来どおり</option><option value="別紙参照">別紙参照</option><option value="__free__">フリー入力</option></select>
+              <input id="f-terms" value="従来どおり" oninput="rp()" style="display:none;margin-top:3px;font-size:11px">
+            </div></div>
+            <div class="fr"><div class="fg"><label>見積有効期限</label><input id="f-valid" oninput="rp()"></div><div class="fg"><label>納期</label>
+              <select id="f-noki-sel" onchange="onNokiSel()" style="font-size:10px;width:100%">
+                <option value="即納可能">即納可能</option>
+                <option value="受注後(実働)2週間程度">受注後(実働)2週間程度</option>
+                <option value="受注後(実働)3週間程度">受注後(実働)3週間程度</option>
+                <option value="受注後1ヵ月">受注後1ヵ月</option>
+                <option value="受注後40日～60日程度">受注後40日～60日程度</option>
+                <option value="__free__">フリー入力</option>
+              </select>
+              <input id="f-noki" value="受注後(実働)2週間程度" oninput="rp()" style="display:none;margin-top:3px;font-size:11px">
+            </div></div>
             <div class="fst">価格・配送</div>
             <div class="fr">
               <div class="fg"><label>仕切区分</label>
@@ -1110,7 +1123,24 @@ function renderProds(){
   });
   container.innerHTML=html||'<div style="padding:14px;text-align:center;color:var(--text3);font-size:11px">該当する品目がありません</div>';
 }
-function refreshProdPrices(){renderProds();}
+function refreshProdPrices(){
+  renderProds();
+  // すでに追加済みの製品の仕切価格を再計算
+  curItems.forEach(item=>{
+    if(item.isHeading||item.isBlank||!item.no) return;
+    const p=PRODS.find(x=>x.no===item.no);
+    if(!p) return;
+    item.price=getProdPrice(p);
+    item.listPrice=p.prices?.L??p.prices?.N??0;
+    // 運搬費も配送先に合わせて再計算
+    const pref=document.getElementById('f-pref')?.value||'';
+    if(pref){
+      const baseFreight=p.freight?.[pref]||0;
+      item.freight=Math.ceil(baseFreight*1.5/10)*10;
+    }
+  });
+  rp();
+}
 
 // ━━━ 明細アイテム操作 ━━━
 function addItem(no){
@@ -1868,7 +1898,8 @@ function renderList(){
     '<td style="text-align:right;font-weight:700">¥'+(e.grandTotal||0).toLocaleString()+'</td>',
     '<td><span class="badge '+(STAT_BG[e.status]||'badge-gray')+'">'+(STAT_LBL[e.status]||'─')+'</span></td>',
     '<td>'+(e.date||'─')+'</td>',
-    '<td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openEstById(\''+e.id+'\')">編集</button></td>',
+    '<td><button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();openEstById(\''+e.id+'\')">編集</button>'
+      +'<button class="btn btn-sm btn-secondary" style="margin-left:4px;background:#e8f4e8;color:#15803d;border-color:#86efac" onclick="event.stopPropagation();copyEst(\''+e.id+'\')">📋 複製</button></td>',
     '</tr>'
   ].join('')).join('')||'<tr><td colspan="10" style="text-align:center;padding:14px;color:var(--text3)">見積データがありません</td></tr>';
   document.getElementById('badge-cnt').textContent=window._ests.length;
@@ -1880,6 +1911,25 @@ function openEst(e){
   ['cust','zip','addr','tel','fax','date','no','deliv','terms','valid','noki','auth','appr','stat','kbn','pref','dealer']
     .forEach(k=>{const el=document.getElementById('f-'+k);if(el&&e[k]!==undefined)el.value=e[k];});
   navigate('pg-new');rp();
+  // プルダウンと入力欄を同期
+  setTimeout(()=>{
+    const termsSel=document.getElementById('f-terms-sel');
+    const termsInp=document.getElementById('f-terms');
+    if(termsSel&&termsInp){
+      const tv=termsInp.value;
+      const opt=[...termsSel.options].find(o=>o.value===tv);
+      if(opt){ termsSel.value=tv; termsInp.style.display='none'; }
+      else { termsSel.value='__free__'; termsInp.style.display=''; }
+    }
+    const nokiSel=document.getElementById('f-noki-sel');
+    const nokiInp=document.getElementById('f-noki');
+    if(nokiSel&&nokiInp){
+      const nv=nokiInp.value;
+      const opt=[...nokiSel.options].find(o=>o.value===nv);
+      if(opt){ nokiSel.value=nv; nokiInp.style.display='none'; }
+      else { nokiSel.value='__free__'; nokiInp.style.display=''; }
+    }
+  },150);
   // ステータスに応じて印刷ボタン制御
   setTimeout(()=>updatePrintBtn(e.status||'draft'),100);
 }
@@ -2324,6 +2374,61 @@ window.addEventListener('load',()=>{
   }
 });
 
+// ━━━ 見積複製 ━━━
+function copyEst(id){
+  const e=window._ests.find(x=>x.id===id);
+  if(!e) return;
+  curEstId=null;
+  curItems=(e.items||[]).map(i=>({...i,id:Date.now()+Math.random()}));
+  ['zip','addr','tel','fax','deliv','terms','valid','noki','auth','appr','kbn','pref','dealer']
+    .forEach(k=>{const el=document.getElementById('f-'+k);if(el&&e[k]!==undefined)el.value=e[k];});
+  const custEl=document.getElementById('f-cust');
+  if(custEl) custEl.value='';
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value=today;
+  const cnt=(window._ests?.length||0)+1;
+  document.getElementById('f-no').value=today.replace(/-/g,'')+String(cnt).padStart(3,'0');
+  const statEl=document.getElementById('f-stat');
+  if(statEl) statEl.value='draft';
+  navigate('pg-new');
+  rp();
+  setTimeout(()=>{
+    const el=document.getElementById('f-cust');
+    if(el){ el.focus(); el.select(); }
+    showToast('複製しました。取引先名を変更して保存してください','success');
+  },200);
+}
+
+
+// ━━━ 取引条件・納期プルダウン ━━━
+function onTermsSel(){
+  const sel=document.getElementById('f-terms-sel');
+  const inp=document.getElementById('f-terms');
+  if(sel.value==='__free__'){
+    inp.style.display='';
+    inp.value='';
+    inp.focus();
+  } else {
+    inp.style.display='none';
+    inp.value=sel.value;
+  }
+  rp();
+}
+function onNokiSel(){
+  const sel=document.getElementById('f-noki-sel');
+  const inp=document.getElementById('f-noki');
+  if(sel.value==='__free__'){
+    inp.style.display='';
+    inp.value='';
+    inp.focus();
+  } else {
+    inp.style.display='none';
+    inp.value=sel.value;
+  }
+  rp();
+}
+
+
 // グローバル公開
 window.openSyncModal=openSyncModal;
 window.closeSyncModal=closeSyncModal;
@@ -2582,7 +2687,7 @@ async function deleteEst(id, estNo){
 // グローバル公開
 ['navigate','rp','addItem','removeItem','updateQty','updateFreight','saveEst','newEst',
  'renderApprovePage','renderPrintPage','deleteEst','approveWorkflow','rejectWorkflow','sentWorkflow','printEst','renderCustomersPage','updatePrintBtn','loadCustomerToEst',
- 'filterProds','refreshProdPrices','refreshFreight','setCat','renderList','openEstById',
+ 'filterProds','refreshProdPrices','refreshFreight','setCat','renderList','openEstById','copyEst','onTermsSel','onNokiSel',
  'applyRate','resetRate','saveRateToFb','renderPriceTable','approveEst','rejectEst',
  'addCalcRow','clearCalc','updCalc','removeCalcRow','saveCalcToProducts',
  'renderCatMgr','setCatMgrType','setCatMgrCat','saveCatMgrToFb','openStampUpload',
