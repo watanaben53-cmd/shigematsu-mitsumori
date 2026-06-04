@@ -1250,7 +1250,7 @@ function rp(){
     :'';
 
   // 明細行（最低13行の枠確保）
-  const MIN_ROWS=13;
+  const MIN_ROWS=showTotal?13:17;  // 合計あり:13行 / 合計なし:17行（集計行4行分を明細に充当）
   let rowsHtml='';
   curItems.forEach(item=>{
     // 見出し行
@@ -1451,8 +1451,11 @@ function rp(){
     '<th style="width:9%">メーカー希望<br>小売価格</th>',
     '<th>備\u3000考</th>',
     '</tr></thead>',
-    '<tbody>',rowsHtml,sumRows,'</tbody>',
+    '<tbody>',rowsHtml,'</tbody>',
     '</table>',
+
+    // 集計行（合計あり時・概要欄の直前）
+    sumRows?('<table class="m-tbl" style="width:100%;margin-bottom:4px"><tbody>'+sumRows+'</tbody></table>'):'',
 
     // 注記
     '<div class="m-notes-hdr">概\u3000要</div>',
